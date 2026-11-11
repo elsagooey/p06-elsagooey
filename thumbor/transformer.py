@@ -318,6 +318,12 @@ class Transformer:
         )
         crop_bottom = min(crop_top + crop_height, source_height)
 
+        # Ensure minimum 1px crop to avoid empty images.
+        crop_width = max(1, crop_right - crop_left)
+        crop_height = max(1, crop_bottom - crop_top)
+        crop_right = min(crop_left + crop_width, source_width)
+        crop_bottom = min(crop_top + crop_height, source_height)
+
         self.engine.crop(crop_left, crop_top, crop_right, crop_bottom)
 
     def flip(self):
@@ -349,9 +355,7 @@ class Transformer:
             and self.target_height == source_height
         ):
             return
-        self.engine.resize(
-            self.target_width or 1, self.target_height or 1
-        )  # avoiding 0px images
+        self.engine.resize(self.target_width or 1, self.target_height or 1)  # avoiding 0px images
 
     def fit_in_resize(self):
         source_width, source_height = self.engine.size
@@ -387,9 +391,11 @@ class Transformer:
             return
 
         # add 1e-5 to get .5 rounding up in Python3 as it was in Python2
+        target_width_for_ratio = max(1, self.target_width)
+        target_height_for_ratio = max(1, self.target_height)
         if (
-            source_width / self.target_width * sign
-            >= source_height / self.target_height * sign
+            source_width / target_width_for_ratio * sign
+            >= source_height / target_height_for_ratio * sign
         ):
             resize_height = round(
                 source_height * self.target_width / source_width + 1e-5
@@ -416,6 +422,10 @@ class Transformer:
         )
         self.context.request.width = int(max(requested_width, resize_width))
         self.context.request.height = int(max(requested_height, resize_height))
+
+        # Ensure minimum 1×1 to avoid PIL ValueError.
+        resize_width = max(1, resize_width)
+        resize_height = max(1, resize_height)
 
         self.engine.resize(resize_width, resize_height)
 
