@@ -276,7 +276,26 @@ class Engine(BaseEngine):
                     if pillow_features.check("libimagequant")
                     else None
                 )
-                self.image = self.image.quantize(method=quantize_method)
+                transparent_mask = None
+                if requested_extension == ".gif" and self.image.mode == "RGBA":
+                    # GIF has no partial alpha, only a transparency index.
+                    # quantize() drops alpha, so remember which pixels were
+                    # transparent and give them a reserved palette index.
+                    mask = self.image.getchannel("A").point(
+                        lambda alpha: 255 if alpha < 128 else 0
+                    )
+                    if mask.getextrema()[1] > 0:
+                        transparent_mask = mask
+
+                if transparent_mask is None:
+                    self.image = self.image.quantize(method=quantize_method)
+                else:
+                    quantized = self.image.convert("RGB").quantize(
+                        colors=255, method=quantize_method
+                    )
+                    quantized.paste(255, mask=transparent_mask)
+                    quantized.info["transparency"] = 255
+                    self.image = quantized
 
         ext = requested_extension or self.get_default_extension()
 
